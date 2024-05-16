@@ -1,6 +1,5 @@
 #pragma once
 
-#include <iostream>
 #include <vector>
 
 class Grille {
@@ -15,6 +14,9 @@ public:
 
     // Méthode pour accéder et modifier les éléments du tableau
     int& xy(int x, int y);
+
+    int getSizeX() {return m_size_x; };
+    int getSizeY() {return m_size_y; };
 
     // Affichage de la grille
     void debug();    

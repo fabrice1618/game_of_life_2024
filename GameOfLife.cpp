@@ -56,20 +56,19 @@ void GameOfLife::draw()
 {
     SDL_Rect cell;
 
-    //std::cout << "Draw window " << WINDOW_X << ", " << WINDOW_Y << std::endl;
-    //std::cout << "Population " << m_population->getSizeX() << ", " << m_population->getSizeY() << std::endl;
     int cell_x = WINDOW_X / m_population->getSizeX();
     int cell_y = WINDOW_Y / m_population->getSizeY();
     int cell_zone = std::min(cell_x, cell_y);
-    //std::cout << "Cell zone " << cell_x << ", " << cell_y << ": " << cell_zone << std::endl;
     int cell_padding = 0;
     if (cell_zone > 2) {
         cell_padding = 1;
     }
-    //std::cout << "Cell padding " << cell_padding << std::endl;
 
     cell.w = cell_zone - cell_padding;
     cell.h = cell_zone - cell_padding;
+    if (cell.w == 0 || cell.h == 0) {
+        exit(0);
+    }
 
     // Couleur des cellules
     SDL_SetRenderDrawColor( m_renderer, m_cell_color_r, m_cell_color_g, m_cell_color_b, 255 );
@@ -77,23 +76,16 @@ void GameOfLife::draw()
     // Dessiner la grille
     for ( int y = 0; y < m_population->getSizeY(); y++ ) {
         for ( int x = 0; x < m_population->getSizeX(); x++ ) {
-            int val = m_population->getXY(x, y);
-            //std::cout << "draw " << x << ", " << y << "= " << val;
             if (m_population->getXY(x, y) == 1) {
                 cell.x = ( x * cell_zone ) + cell_padding;
                 cell.y = ( y * cell_zone ) + cell_padding;
-                //std::cout << " cell " << cell.x << ", " << cell.y;
-                //std::cout << " w,h " << cell.w << ", " << cell.h;
 
                 SDL_RenderFillRect( m_renderer, &cell );
             }
-             //std::cout << std::endl;
         }
     }
-
     SDL_RenderPresent( m_renderer );
 }
-
 
 void GameOfLife::traiter_evenements()
 {

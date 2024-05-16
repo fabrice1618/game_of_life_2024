@@ -1,13 +1,13 @@
 #include <ctime>
+#include <cassert>
 #include "Population.h"
 #include "Config.h"
-
 
 Population::Population(Config config)
 {
     m_size_x = config.getSizeX();
     m_size_y = config.getSizeY();
-    m_generation_delay = config.getGenerationDelay();
+    m_actuel = new Grille(m_size_x, m_size_y);
 }
 
 Population::~Population()
@@ -16,38 +16,12 @@ Population::~Population()
     delete m_actuel;
 }
 
-/*
-void Population::setSizeX(int x)
-{
-    if (x < 3 || x > 999) {
-      fprintf(stderr, "Error: population x must be between 3 and 999\n");
-      exit(EXIT_FAILURE);
-    }
-    if (m_generation_start == 0) {
-        m_size_x = x;
-        //std::cout << "setSizeX " << m_size_x << std::endl;
-    }    
-}
-
-void Population::setSizeY(int y)
-{
-    if (y < 3 || y > 999) {
-      fprintf(stderr, "Error: population y must be between 3 and 999\n");
-      exit(EXIT_FAILURE);
-    }
-    if (m_generation_start == 0) {
-        m_size_y = y;
-        //std::cout << "setSizeY " << m_size_y << std::endl;
-    }    
-}
-*/
-
-int Population::getSizeX() 
+int Population::getSizeX()
 {
     return m_size_x;
 }
 
-int Population::getSizeY() 
+int Population::getSizeY()
 {
     return m_size_y;
 }
@@ -57,125 +31,143 @@ int Population::getXY(int x, int y)
     return (int)m_actuel->xy(x, y);
 }
 
-/*
-void Population::setGenerationDelay(int generationDelay)
+int Population::count_row(int row)
 {
-    if (generationDelay < 0 || generationDelay > 999) {
-      fprintf(stderr, "Error: generation delay must be between 0 and 999\n");
-      exit(EXIT_FAILURE);
+    int count = 0;
+
+    for (int x = 0; x < m_size_x; x++) {
+        count += getXY(x, row);
     }
-    m_generation_delay = generationDelay;
+    return count;
 }
-*/
 
-bool Population::attendre_generation()
+int Population::count_col(int col)
 {
-    clock_t now = std::clock() / 1000;
+    int count = 0;
 
-    if (
-        (m_generation_start == 0) || 
-        (now - m_generation_start > m_generation_delay)
-        ) {
-        m_generation_start = now;
-        return true;
+    for (int y = 0; y < m_size_y; y++) {
+        count += getXY(col, y);
     }
-
-    return false;
+    return count;
 }
 
 void Population::evoluer()
 {
     m_generation++;
-    std::cout << "Evolution " << m_generation << std::endl;
+
+    // Vérifier si il faut agrandir la grille
+    int new_size_x = m_size_x;
+    int new_size_y = m_size_y;
+    int offset_x = 0;
+    int offset_y = 0;
+
+    int growSizeX = std::min((int)m_size_x / 10, 1);
+    int growSizeY = std::min((int)m_size_y / 10, 1);
+
+    // growNorth
+    if (count_row(0) > 0) {
+        offset_y = growSizeY;
+        new_size_y += growSizeY;
+    }
+    // growSouth
+    if (count_row(m_size_y - 1) > 0) {
+        new_size_y += growSizeY;
+    }
+    // growWest
+    if (count_col(0) > 0) {
+        offset_x = growSizeX;
+        new_size_x += growSizeX;
+    }
+    // growEast
+    if (count_col(m_size_x - 1) > 0) {
+        new_size_x += growSizeX;
+    }
+
+    if (m_size_x != new_size_x || m_size_y != new_size_y) {
+        Grille* resized = new Grille(new_size_x, new_size_y);
+        copy_grid_offset(resized, offset_x, offset_y);
+
+        // Remplacer la grille
+        replace_grid(resized);
+    }
+    
+    Grille* future = new Grille(m_size_x, m_size_y);
+    next_state(future);
+
+    // Remplacer la grille
+    replace_grid(future);
 }
 
-void Population::initRandom(int random_alea)
+void Population::replace_grid(Grille* nouvelle)
 {
-    if (m_actuel != nullptr) {
-        delete m_actuel;
-    }
-    m_actuel = new Grille(m_size_x, m_size_y);
+    delete m_actuel;
+    m_actuel = nouvelle;
+    m_size_x = nouvelle->getSizeX();
+    m_size_y = nouvelle->getSizeY();
+}
 
-    // Initialiser le générateur de nombre pseudo-aléatoires.
-    srand( time( NULL ) );
+int Population::count_around(int cell_x, int cell_y)
+{
+    int nb_vivantes = 0;
 
-    for ( int y = 0; y < m_size_y; y++ ) {
-        for ( int x = 0; x < m_size_x; x++ ) {
-            if ((rand() % 100) < random_alea) {
-                m_actuel->xy(x, y) = 1;
+    for (int y = cell_y-1; y <= cell_y+1; y++) {
+        for (int x = cell_x-1; x <= cell_x+1; x++) {
+            if (x < 0 || x > (m_size_x - 1) || y < 0 || y > (m_size_y - 1)) {
+                continue;
             }
-            else {
-                m_actuel->xy(x, y) = 0;
-            }                
+            if (x == cell_x && y == cell_y) {
+                continue;
+            }
+
+            nb_vivantes += getXY(x, y);
         }
     }
-    //Population::attendre_generation();
+
+    return(nb_vivantes);
 }
 
-/*
-void Population::dump()
-{
-    // Afficher le contenu initial
-    std::cout << "Contenu initial du tableau :" << std::endl;
-    for (int i = 0; i < m_size_y; ++i) {
-        for (int j = 0; j < m_size_x; ++j) {
-            std::cout << m_actuel->xy(j, i) << " ";
-        }
-        std::cout << std::endl;
-    }
-}
-*/
-
-/*
-int cell_count( int y, int x )
-{
-    int nb_vivante =    cell_grid[y-1][x-1] +
-                        cell_grid[y-1][x] +
-                        cell_grid[y-1][x+1] +
-                        cell_grid[y][x-1] +
-                        cell_grid[y][x+1] +
-                        cell_grid[y+1][x-1] +
-                        cell_grid[y+1][x] +
-                        cell_grid[y+1][x+1] ;
-    return(nb_vivante);
-}
-
-void next_state()
+void Population::next_state(Grille* future)
 {
     int nb_autour;
 
-    for (int y=0; y < size_y; y++) {
-        for (int x=0; x < size_x; x++) {
+    for (int y=0; y < getSizeY(); y++) {
+        for (int x=0; x < getSizeX(); x++) {
             // Compter le nombre de celulles vivantes autour
-            nb_autour = cell_count(y, x);
+            nb_autour = count_around(x, y);
 
-            if (cell_grid[y][x] == 1) {
+            if (getXY(x, y) == 1) {
                 // Si la celulle etait vivante
                 if (nb_autour == 2 || nb_autour == 3) {
-                    next_grid[y][x] = 1;
-                } else {
-                    next_grid[y][x] = 0;
+                    future->xy(x, y) = 1;
                 }
             } else {
                 // Si la celulle etait morte
                 if (nb_autour == 3) {
-                    next_grid[y][x] = 1;
-                } else {
-                    next_grid[y][x] = 0;
+                    future->xy(x, y) = 1;
                 }
             }
         }
     }
 }
-*/
 
-/*
-void copy_grid()
+
+void Population::initRandom(int random_alea)
 {
-    for (int y=0; y < size_y; y++) {
-        for (int x=0; x < size_x; x++) {
-            cell_grid[y][x] = next_grid[y][x];
+    // Initialiser le générateur de nombre pseudo-aléatoires.
+    srand(time(NULL));
+
+    for (int y = 0; y < m_size_y; y++) {
+        for (int x = 0; x < m_size_x; x++) {
+            m_actuel->xy(x, y) = rand() % 100 < random_alea ? 1 : 0;
         }
     }
 }
-*/
+
+void Population::copy_grid_offset(Grille* copie, int offset_x, int offset_y)
+{
+    for (int y=0; y < m_size_y; y++) {
+        for (int x=0; x < m_size_x; x++) {
+            copie->xy(x + offset_x, y + offset_y) = getXY(x, y);
+        }
+    }
+}
